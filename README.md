@@ -28,13 +28,25 @@ on startup.
 
 ## Phone remote
 
-Open the `remote:` URL shown in the top-right of the display (something like
-`http://192.168.0.22:8937/Crew/remote.html`) on a phone connected to the same
-network. It can switch characters, control music and trigger reactions.
+The display shows the remote's address in its top-right corner. Open that on a
+phone: switch characters, control music, trigger reactions.
 
-**The remote only works under `remote_server.py`.** On a static host (GitHub
-Pages included) there is no relay, so the display detects that and silently
-runs without it — everything else still works.
+It works two ways, picked automatically (`Crew/relay.js`):
+
+- **Local** — when `remote_server.py` is serving, the phone POSTs to `/api/cmd`
+  and the display polls it. Same Wi-Fi, nothing leaves the network, lowest
+  latency. No room code needed.
+- **Cloud** — on a static host like GitHub Pages there is no server to relay
+  through, so both ends meet on a public MQTT broker over WSS. The display
+  generates a 5-character **room code** and shows it; the remote link already
+  carries it in the URL hash (`remote.html#W5NKB`), or you can type it in on the
+  phone. Both devices must be in the same room.
+
+The cloud path leans on free public brokers (HiveMQ, with Mosquitto as
+fallback). They're best-effort with no uptime guarantee, and the room code is
+the only thing keeping a channel private — fine for switching cartoon
+characters, don't build anything sensitive on it. The local path is preferred
+whenever it's available.
 
 ## Music
 

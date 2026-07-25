@@ -56,8 +56,10 @@ video#cam{position:fixed;bottom:14px;right:14px;width:150px;height:112px;border-
 #bird{position:fixed;left:0;top:0;width:122px;z-index:12;display:none;pointer-events:none;will-change:transform;filter:drop-shadow(0 10px 24px rgba(0,0,0,.65))}
 @media(max-width:700px){#bird{width:82px}}
 
-#remoteInfo{position:fixed;top:14px;right:14px;z-index:20;font-size:11px;color:#5f6672;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:6px 11px;opacity:0;transition:opacity .3s;pointer-events:none}
+#remoteInfo{position:fixed;top:14px;right:14px;z-index:20;font-size:11px;line-height:1.6;text-align:right;color:#5f6672;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:6px 11px;opacity:0;transition:opacity .3s,border-color .3s;user-select:text}
 #remoteInfo.on{opacity:1}
+#remoteInfo b{color:#aeb6c2;font-weight:600;letter-spacing:.04em}
+#remoteInfo.live{border-color:rgba(70,196,106,.45)}
 @media(max-width:700px){#remoteInfo{display:none}}
 
 #gesture{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(.8);font-size:clamp(38px,9vw,86px);font-weight:800;letter-spacing:.06em;color:#fff;text-shadow:0 0 40px rgba(255,255,255,.35);z-index:15;opacity:0;pointer-events:none;transition:opacity .3s,transform .3s}
@@ -116,6 +118,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RigCharacter, CLIPS } from './rig_engine.js';
 import { applyCalibration } from './apply_calibration.js';
+import { openChannel } from './relay.js';
 
 // ═══════════════════════════════════════════════════════════════════════
 // extra reaction clips (not in the engine's built-in set)
@@ -763,11 +766,9 @@ async function initMusic() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// phone remote — polls the command relay in remote_server.py.
-// Degrades silently to a no-op under a plain static server.
+// phone remote — see relay.js. Uses remote_server.py when it's there and a
+// public broker when it isn't, so this works from GitHub Pages too.
 // ═══════════════════════════════════════════════════════════════════════
-let cmdSeq = null;   // null until the first sync, so we don't replay a backlog
-
 function applyCommand(c) {
     switch (c.type) {
         case 'view':
@@ -791,32 +792,22 @@ function applyCommand(c) {
     }
 }
 
-async function pollRemote() {
-    try {
-        const res = await fetch(`/api/cmd?since=${cmdSeq ?? 0}`, { cache: 'no-store' });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
-        if (cmdSeq !== null) for (const c of data.cmds ?? []) applyCommand(c);
-        cmdSeq = data.seq ?? 0;
-        remoteInfo.classList.add('on');
-    } catch {
-        remoteInfo.classList.remove('on');
-    }
-}
-
 const remoteInfo = document.getElementById('remoteInfo');
+let channel = null;
+
 async function initRemote() {
     try {
-        const res = await fetch('/api/info', { cache: 'no-store' });
-        if (!res.ok) throw new Error();
-        const { lan, port } = await res.json();
-        remoteInfo.textContent = `remote: ${lan}:${port}/Crew/remote.html`;
+        channel = await openChannel({
+            onCommand: applyCommand,
+            onStatus: ok => remoteInfo.classList.toggle('live', ok),
+        });
+        const pretty = channel.remoteUrl.replace(/^https?:\/\//, '');
+        remoteInfo.innerHTML = channel.mode === 'local'
+            ? `remote &nbsp;<b>${pretty}</b>`
+            : `remote &nbsp;<b>${pretty}</b><br>room code &nbsp;<b>${channel.room}</b>`;
         remoteInfo.classList.add('on');
-        setInterval(pollRemote, 400);
-        pollRemote();
-    } catch {
-        // plain static server — no relay available, so no remote.
-        console.info('remote control unavailable (run remote_server.py to enable it)');
+    } catch (e) {
+        console.info('remote unavailable —', e.message);
     }
 }
 
