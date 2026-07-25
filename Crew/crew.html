@@ -545,23 +545,49 @@ function flash(text) {
 // ═══════════════════════════════════════════════════════════════════════
 // background: starfield, floating notes, and the occasional dancing bird
 // ═══════════════════════════════════════════════════════════════════════
-const STAR_N = 420;
-const starGeo = new THREE.BufferGeometry();
-{
-    const pos = new Float32Array(STAR_N * 3);
-    for (let i = 0; i < STAR_N; i++) {
-        pos[i * 3]     = rand(-28, 28);
-        pos[i * 3 + 1] = rand(-6, 22);
-        pos[i * 3 + 2] = rand(-32, -5);   // strictly behind the cast
+// Chunky five-pointed cartoon stars, drawn once to a canvas and reused as a
+// sprite texture so each one can be tinted, spun and pulsed on its own.
+function makeStarTexture(size = 160) {
+    const c = document.createElement('canvas');
+    c.width = c.height = size;
+    const g = c.getContext('2d');
+    const cx = size / 2, cy = size / 2, R = size * 0.44, r = R * 0.46;
+    g.beginPath();
+    for (let i = 0; i < 10; i++) {
+        const a = -Math.PI / 2 + i * Math.PI / 5;
+        const rad = i % 2 ? r : R;
+        const x = cx + Math.cos(a) * rad, y = cy + Math.sin(a) * rad;
+        i ? g.lineTo(x, y) : g.moveTo(x, y);
     }
-    starGeo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    g.closePath();
+    g.shadowColor = 'rgba(255,255,255,0.9)';
+    g.shadowBlur = size * 0.10;
+    g.fillStyle = '#fff';
+    g.fill();
+    // second pass thickens the glow without washing out the points
+    g.shadowBlur = size * 0.05;
+    g.fill();
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
 }
-const starMat = new THREE.PointsMaterial({
-    color: 0xffffff, size: 0.075, sizeAttenuation: true,
-    transparent: true, opacity: 0.5, depthWrite: false, blending: THREE.AdditiveBlending
-});
-scene.add(new THREE.Points(starGeo, starMat));
-const starField = scene.children[scene.children.length - 1];
+
+const STAR_TEX = makeStarTexture();
+const STAR_COLORS = [0xffe066, 0xfff3b0, 0x8ad8ff, 0xff9ee0, 0xffffff, 0xa6ff9e];
+const stars = [];
+for (let i = 0; i < 46; i++) {
+    const mat = new THREE.SpriteMaterial({
+        map: STAR_TEX, color: pick(STAR_COLORS), transparent: true,
+        opacity: rand(0.35, 0.85), depthWrite: false, blending: THREE.AdditiveBlending,
+    });
+    const sp = new THREE.Sprite(mat);
+    sp.position.set(rand(-26, 26), rand(-3, 17), rand(-28, -6));   // behind the cast
+    const size = rand(0.55, 1.9);
+    sp.scale.setScalar(size);
+    mat.rotation = rand(0, Math.PI * 2);
+    scene.add(sp);
+    stars.push({ sp, mat, size, base: mat.opacity, phase: rand(0, Math.PI * 2), spin: rand(-0.35, 0.35) });
+}
 
 const notesEl = document.getElementById('notes');
 const GLYPHS = ['♪', '♫', '♬', '♩'];
@@ -569,8 +595,13 @@ const NOTE_COLORS = ['#ffffff', '#7fd8ff', '#ff8ad8', '#ffd166', '#9cff9c'];
 let noteCool = 0;
 
 function updateBackground(dt, t) {
-    starField.rotation.y += dt * 0.008;
-    starMat.opacity = clamp(0.34 + bass * 0.55 + Math.sin(t * 1.4) * 0.05, 0, 1);
+    // Each star twinkles on its own phase and swells with the low end.
+    for (const s of stars) {
+        const tw = 0.86 + Math.sin(t * 1.5 + s.phase) * 0.14;
+        s.sp.scale.setScalar(s.size * tw * (1 + bass * 0.4));
+        s.mat.opacity = clamp(s.base * tw + bass * 0.3, 0, 1);
+        s.mat.rotation += s.spin * dt;
+    }
 
     // Notes only while music is actually playing, and faster on loud passages.
     if (audioEl.paused) return;
