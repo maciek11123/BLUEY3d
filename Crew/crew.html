@@ -194,8 +194,9 @@ const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('three'), antialias: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.outputColorSpace = THREE.SRGBColorSpace;
-renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.05;
+// No tone mapping — MeshBasicMaterial is unlit, so the texture colors should
+// reach the screen exactly as authored for the flat cartoon look.
+renderer.toneMapping = THREE.NoToneMapping;
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x000000);
