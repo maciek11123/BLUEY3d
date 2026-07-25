@@ -109,8 +109,10 @@ video#cam{position:fixed;bottom:14px;right:14px;width:150px;height:112px;border-
 
 <script type="importmap">
 {"imports":{
-  "three":"https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js",
-  "three/addons/":"https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/"
+  "three":"https://cdn.jsdelivr.net/npm/three@0.172.0/build/three.webgpu.js",
+  "three/webgpu":"https://cdn.jsdelivr.net/npm/three@0.172.0/build/three.webgpu.js",
+  "three/tsl":"https://cdn.jsdelivr.net/npm/three@0.172.0/build/three.tsl.js",
+  "three/addons/":"https://cdn.jsdelivr.net/npm/three@0.172.0/examples/jsm/"
 }}
 </script>
 <script type="module">
@@ -191,7 +193,9 @@ const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 // ═══════════════════════════════════════════════════════════════════════
 // three.js scene — black, no ground
 // ═══════════════════════════════════════════════════════════════════════
-const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('three'), antialias: true });
+// WebGPURenderer falls back to WebGL2 by itself when the browser has no
+// WebGPU, so this page still works everywhere — same look either way.
+const renderer = new THREE.WebGPURenderer({ canvas: document.getElementById('three'), antialias: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 // No tone mapping — MeshBasicMaterial is unlit, so the texture colors should
@@ -903,7 +907,6 @@ async function initRemote() {
 // ═══════════════════════════════════════════════════════════════════════
 const clock = new THREE.Clock();
 function animate() {
-    requestAnimationFrame(animate);
     const dt = Math.min(clock.getDelta(), 0.05);
 
     resize();
@@ -955,7 +958,9 @@ async function boot() {
     resize();
     applyView('all');
     frameCamera(true);
-    animate();
+    await renderer.init();
+    console.info('renderer backend:', renderer.backend.isWebGPUBackend ? 'WebGPU' : 'WebGL2 fallback');
+    renderer.setAnimationLoop(animate);
     document.getElementById('loading').style.display = 'none';
 
     await loadVoiceManifest();
