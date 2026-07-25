@@ -75,6 +75,19 @@ button:disabled{opacity:.35;cursor:default}
   </div>
 </section>
 
+<section>
+  <h2>Voice lines</h2>
+  <div class="grid g2">
+    <button data-say="hi-charlie">Hi Charlie!</button>
+    <button data-say="hi-avery">Hi Avery!</button>
+    <button data-say="hooray">Hooray!</button>
+    <button data-say="dance-mode">Dance mode!</button>
+    <button data-say="lets-play">Let's play!</button>
+    <button data-say="awesome-charlie">Awesome, Charlie!</button>
+    <button data-say="awesome-avery">Awesome, Avery!</button>
+  </div>
+</section>
+
 <section id="roomRow" style="display:none">
   <h2>Room code</h2>
   <div class="row">
@@ -133,6 +146,10 @@ document.querySelectorAll('[data-music]').forEach(b => b.addEventListener('click
 
 document.querySelectorAll('[data-gesture]').forEach(b => b.addEventListener('click', () => {
     send({ type: 'gesture', kind: b.dataset.gesture }, b.textContent + '!');
+}));
+
+document.querySelectorAll('[data-say]').forEach(b => b.addEventListener('click', () => {
+    send({ type: 'say', greeting: b.dataset.say }, b.textContent);
 }));
 
 // Throttle the slider so dragging doesn't fire a request per pixel.

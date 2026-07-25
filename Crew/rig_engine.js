@@ -223,16 +223,19 @@ export class RigCharacter {
             if (!c.isMesh) return;
             const mats = Array.isArray(c.material) ? c.material : [c.material];
             const allHaveTexture = mats.every(m => m.map);
-            for (const m of mats) {
-                m.side = THREE.DoubleSide;
-                m.transparent = false;
-                m.depthWrite = true;
-                m.alphaTest = 0;
-                if (m.emissive) m.emissive.setRGB(0, 0, 0);
-                m.roughness = 0.92;
-                if (allHaveTexture) m.vertexColors = false;
-                m.needsUpdate = true;
-            }
+            const replaced = mats.map(m => {
+                const basic = new THREE.MeshBasicMaterial({
+                    map: m.map || null,
+                    color: m.color ? m.color.clone() : new THREE.Color(0xffffff),
+                    side: THREE.DoubleSide,
+                    transparent: false,
+                    depthWrite: true,
+                    alphaTest: 0,
+                    vertexColors: allHaveTexture ? false : m.vertexColors,
+                });
+                return basic;
+            });
+            c.material = Array.isArray(c.material) ? replaced : replaced[0];
             if (allHaveTexture && c.geometry?.attributes?.color) c.geometry.deleteAttribute('color');
             c.frustumCulled = false;
         });

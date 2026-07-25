@@ -65,6 +65,7 @@ video#cam{position:fixed;bottom:14px;right:14px;width:150px;height:112px;border-
 #gesture{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(.8);font-size:clamp(38px,9vw,86px);font-weight:800;letter-spacing:.06em;color:#fff;text-shadow:0 0 40px rgba(255,255,255,.35);z-index:15;opacity:0;pointer-events:none;transition:opacity .3s,transform .3s}
 #gesture.show{opacity:.92;transform:translate(-50%,-50%) scale(1)}
 
+
 #loading{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#000;z-index:100;gap:14px}
 #loading .t{font-size:20px;font-weight:700;letter-spacing:.04em}
 #loading .sub{font-size:13px;color:#6b727e}
@@ -343,6 +344,57 @@ class Character {
 }
 
 const crew = [];
+
+// ═══════════════════════════════════════════════════════════════════════
+// voice lines — plays audio clips from Music/voice/ with speech bubbles
+// ═══════════════════════════════════════════════════════════════════════
+const VOICE_DIR = '../Music/';
+let voiceManifest = [];
+
+async function loadVoiceManifest() {
+    try {
+        const res = await fetch(VOICE_DIR + 'voice/manifest.json');
+        if (!res.ok) throw new Error(res.status);
+        voiceManifest = await res.json();
+    } catch (e) { console.warn('voice manifest unavailable:', e.message); }
+}
+
+function findVoiceLine(charName, text) {
+    const lower = text.toLowerCase();
+    return voiceManifest.find(v =>
+        v.character.toLowerCase() === charName.toLowerCase() &&
+        v.text.toLowerCase().includes(lower)
+    );
+}
+
+function charSay(char, line) {
+    if (!line) return;
+    const a = new Audio(VOICE_DIR + line.file);
+    a.volume = audioEl.volume;
+    a.play().catch(() => {});
+    char.react('excited', Math.max(line.duration + 0.5, 2));
+}
+
+function sayGreeting(kind) {
+    const greetings = {
+        'hi-charlie':      'hi charlie',
+        'hi-avery':        'hi avery',
+        'hooray':          'hooray',
+        'dance-mode':      'dance mode',
+        'lets-play':       "let's play",
+        'awesome-charlie': 'awesome dancing, charlie',
+        'awesome-avery':   'awesome dancing, avery',
+    };
+    const search = greetings[kind];
+    if (!search) return;
+
+    const speakers = crew.filter(c => c.visible && (c.key === 'bluey' || c.key === 'bingo'));
+    const speaker = speakers.length ? pick(speakers) : crew.find(c => c.visible);
+    if (!speaker) return;
+
+    const line = findVoiceLine(speaker.name, search);
+    charSay(speaker, line);
+}
 
 // ═══════════════════════════════════════════════════════════════════════
 // layout + camera framing
@@ -820,6 +872,9 @@ function applyCommand(c) {
             if (!Number.isNaN(v)) { audioEl.volume = v; document.getElementById('mVol').value = v; }
             break;
         }
+        case 'say':
+            if (c.greeting) sayGreeting(c.greeting);
+            break;
     }
 }
 
@@ -902,12 +957,13 @@ async function boot() {
     animate();
     document.getElementById('loading').style.display = 'none';
 
+    await loadVoiceManifest();
     await initMusic();
     await initRemote();
 
     // Console hook — try the reactions without a webcam:
     //   crewDemo.fire('wave' | 'cheer' | 'dance')
-    window.crewDemo = { crew, fire: (k) => { dispatch(k); flash(LABEL[k]); }, tracks: () => tracks };
+    window.crewDemo = { crew, fire: (k) => { dispatch(k); flash(LABEL[k]); }, say: sayGreeting, tracks: () => tracks };
 
     hud('starting camera…', false);
     if (await startCamera()) await initMediaPipe();
